@@ -167,6 +167,7 @@ details.saved>summary small{color:var(--muted)}
 .sv-btns .btn{margin:0;padding:3px 8px}
 .btn.danger{background:var(--bad);border-color:var(--bad);color:#fff}
 .sv-file{display:flex;gap:6px;flex-wrap:wrap}
+.sv-gd{display:flex;flex-direction:column;gap:6px;border-top:1px dashed var(--line);padding-top:8px;margin-top:2px}.sv-gd small{color:var(--muted,#667);font-size:11.5px}.sv-gd .sv-new .btn{flex:1}#gdList{display:flex;flex-direction:column;gap:6px}
 .sv-file .btn{margin:0;cursor:pointer}
 .wallbar{display:flex;flex-direction:column;align-items:stretch;gap:10px;margin-bottom:16px;padding:10px 0 12px;border-top:1px solid var(--line);border-bottom:2px solid var(--line)}
 .ttabs{display:flex;gap:0;border-bottom:1px solid var(--line);margin:-2px 0 0}
@@ -281,6 +282,9 @@ header.top .impwrap{margin-left:auto;padding-left:16px;border-left:1px solid var
     <div id="svList"><p class="note">저장소에 연결하는 중…</p></div>
     <div class="sv-file"><button class="btn small" id="svExport" type="button">파일로 내보내기 (.json)</button><label class="btn small" for="svImport">파일 가져오기</label><input id="svImport" type="file" accept=".json,application/json" hidden></div>
     <div id="impAsk" class="optres" hidden></div>
+    <div class="sv-gd"><div><b>구글 드라이브</b> <small id="gdWhere">내 드라이브 › - GitHub 작업 - › 옹벽 설계도구</small></div>
+      <div class="sv-new"><button class="btn small primary" id="gdSave" type="button">드라이브에 저장</button><button class="btn small" id="gdRefresh" type="button">드라이브 목록</button></div>
+      <div id="gdList"><p class="note">위 이름칸의 이름으로 .wall.json 파일을 저장합니다. 사무실·집 어디서나 같은 목록이 보입니다. 처음 쓸 때 구글 드라이브 사용 허용 창이 뜨면 "허용"을 눌러 주세요.</p></div></div>
   </details>
   <form id="frm" autocomplete="off">
   <p class="fsnote" id="fsNote"></p>
@@ -2471,6 +2475,64 @@ function askImport(fname,ws,j){
       PROJ.walls.push({name:nm,values:normV(w.values)}); });
     switchWall(first); persistLocal(); toast(`${fname}에서 옹벽 ${ws.length}개를 목록 뒤에 추가했습니다 (전체 ${PROJ.walls.length}개).`); };
 }
+
+/* ---------- 구글 드라이브 저장: 사용자의 Google Drive 커넥터로 "내 드라이브 › - GitHub 작업 - › 옹벽 설계도구" 폴더에 .wall.json 파일 (발전량·우수 도구와 같은 방식) ---------- */
+const GD={server:"Google Drive",parent:"- GitHub 작업 -",folderName:"옹벽 설계도구",folder:null,where:null,list:null,busy:false};
+async function gdCall(tool,input){ const mcp=window.claude&&window.claude.use?await window.claude.use("mcp"):null; if(!mcp) throw {code:"not_granted"};
+  const r=await mcp.callTool(GD.server,tool,input,{cache:false}); return {payload:r.payload,result:r}; }
+function gdErr(e){const c=e&&e.code; return c==="needs_reauth"?"구글 드라이브 연결이 만료되었습니다. claude.ai 설정 → 커넥터에서 Google Drive를 다시 연결해 주세요.":c==="server_not_connected"?"claude.ai 설정 → 커넥터에서 Google Drive를 추가해 주세요.":(c==="approval_required"||c==="not_in_manifest"||c==="consent_required")?"이 도구가 구글 드라이브를 쓰도록 허용해야 합니다(허용 창에서 \"허용\").":c==="selection_required"?"연결된 Google Drive가 여러 개라 하나를 골라야 합니다.":(c==="not_granted"||c==="capability_disabled")?"이 화면에서는 구글 드라이브를 쓸 수 없습니다(claude.ai에서 도구를 열어 주세요).":(e&&(e.message||e.code))||String(e);}
+async function gdFolder(){ if(GD.folder) return GD.folder;
+  const q=t=>`title = '${t}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
+  const par=((await gdCall("search_files",{query:q(GD.parent),excludeContentSnippets:true,pageSize:5})).payload||{}).files||[], pid=par[0]&&par[0].id;
+  const fd=((await gdCall("search_files",{query:q(GD.folderName)+(pid?` and parentId = '${pid}'`:""),excludeContentSnippets:true,pageSize:5})).payload||{}).files||[];
+  let id=fd[0]&&fd[0].id;
+  if(!id){ const c=(await gdCall("create_file",{title:GD.folderName,contentMimeType:"application/vnd.google-apps.folder",...(pid?{parentId:pid}:{})})).payload||{}; id=c.id; }
+  if(!id) throw new Error("구글 드라이브 폴더를 만들지 못했습니다");
+  GD.folder=id; GD.where=pid?`내 드라이브 › ${GD.parent} › ${GD.folderName}`:`내 드라이브 › ${GD.folderName}`; $("gdWhere").textContent=GD.where; return id; }
+const gdB64=b=>{const bin=atob(b),u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return new TextDecoder().decode(u);};
+function renderGD(msg){ const box=$("gdList");
+  if(msg){box.innerHTML=`<p class="note">${esc(msg)}</p>`;return;}
+  if(!GD.list) return;
+  if(!GD.list.length){box.innerHTML=`<p class="note">드라이브에 저장한 설계가 없습니다.</p>`;return;}
+  box.innerHTML=GD.list.map(d=>`<div class="sv-row" data-gid="${esc(d.id)}"><div class="sv-meta"><b>${esc(d.name)}</b><small>${esc(svDate(d.ts))}${d.size?" · "+Math.round(d.size/1024)+" KB":""}${d.url?` · <a href="${esc(d.url)}" target="_blank" rel="noopener">드라이브에서 보기</a>`:""}</small></div>
+    <div class="sv-btns"><button type="button" class="btn small" data-gact="load">불러오기</button><button type="button" class="btn small" data-gact="over">덮어쓰기</button><button type="button" class="btn small" data-gact="del">삭제</button></div></div>`).join(""); }
+async function gdRefresh(){ renderGD("구글 드라이브 목록을 읽는 중…");
+  try{ const folder=await gdFolder();
+    const fs=((await gdCall("search_files",{query:`parentId = '${folder}' and trashed = false and title contains '.wall.json'`,excludeContentSnippets:true,pageSize:100})).payload||{}).files||[];
+    GD.list=fs.map(x=>({id:x.id,name:String(x.title||"").replace(/\.wall\.json$/i,""),ts:Date.parse(x.modifiedTime)||0,size:+x.fileSize||0,url:x.viewUrl})).sort((a,b)=>b.ts-a.ts);
+    renderGD(); }
+  catch(e){ GD.list=null; renderGD("구글 드라이브를 쓸 수 없습니다: "+gdErr(e)); } }
+async function gdPut(name,oldId){ const folder=await gdFolder();
+  const data=JSON.stringify({app:"옹벽 설계도구",version:2,savedAt:new Date().toISOString(),...projectData()});
+  if(new TextEncoder().encode(data).length>700000) throw new Error("저장본이 너무 커서 드라이브로 바로 올릴 수 없습니다. \"파일로 내보내기\" 후 드라이브에 올려 주세요.");
+  await gdCall("create_file",{title:name.replace(/[\\/]/g,"_")+".wall.json",parentId:folder,contentMimeType:"application/json",disableConversionToGoogleType:true,textContent:data});
+  if(oldId) await gdCall("trash_file",{fileId:oldId});   /* 덮어쓰기 = 새 파일 저장 후 이전 파일은 드라이브 휴지통으로 */ }
+$("gdRefresh").addEventListener("click",gdRefresh);
+$("gdSave").addEventListener("click",async()=>{ if(GD.busy)return;
+  const name=$("svName").value.trim()||`옹벽 H${num("H")} (${svDate(Date.now())})`;
+  GD.busy=true; $("gdSave").disabled=true; renderGD("구글 드라이브에 저장하는 중…");
+  try{ if(!GD.list) { try{ await gdRefresh(); }catch(e){} }
+    const same=(GD.list||[]).find(d=>d.name===name);
+    await gdPut(name,same&&same.id); $("svName").value=""; toast(same?`"${name}"을(를) 구글 드라이브에 덮어썼습니다.`:`"${name}"을(를) 구글 드라이브에 저장했습니다.`); }
+  catch(e){ toast("구글 드라이브에 저장하지 못했습니다: "+gdErr(e)); }
+  finally{ GD.busy=false; $("gdSave").disabled=false; await gdRefresh(); } });
+$("gdList").addEventListener("click",async ev=>{ const b=ev.target.closest("[data-gact]"); if(!b||GD.busy)return;
+  const id=b.closest(".sv-row").dataset.gid, d=(GD.list||[]).find(x=>x.id===id); if(!d)return; const act=b.dataset.gact;
+  if(act!=="load"&&b.dataset.armed!=="1"){ const lbl=b.textContent; b.dataset.armed="1"; b.textContent=act==="del"?"정말 삭제":"정말 덮어쓰기"; b.classList.add("danger");
+    setTimeout(()=>{b.dataset.armed="";b.textContent=lbl;b.classList.remove("danger");},3000); return; }
+  GD.busy=true;
+  try{
+    if(act==="load"){ const {payload,result}=await gdCall("download_file_content",{fileId:id});
+      let txt=payload&&typeof payload.content==="string"?gdB64(payload.content):null;
+      if(txt==null){ const blk=(result.content||[]).find(c=>c.resource&&(c.resource.blob||c.resource.text)); if(blk) txt=blk.resource.text||gdB64(blk.resource.blob); else if(typeof payload==="string") txt=payload; }
+      if(txt==null) throw new Error("파일 내용을 받지 못했습니다");
+      const j=JSON.parse(txt); if(!j.walls||!j.walls.length) throw new Error("이 파일에는 옹벽 입력값이 없습니다");
+      loadProject(j); toast(`"${d.name}"을(를) 구글 드라이브에서 불러왔습니다.`); }
+    else if(act==="over"){ await gdPut(d.name,id); toast(`"${d.name}"을(를) 지금 값으로 덮어썼습니다.`); }
+    else { await gdCall("trash_file",{fileId:id}); toast(`"${d.name}"을(를) 드라이브 휴지통으로 옮겼습니다.`); }
+  }catch(e){ toast("처리하지 못했습니다: "+gdErr(e)); }
+  finally{ GD.busy=false; if(act!=="load") await gdRefresh(); } });
+
 svInit();
 
 /* ---------- 상세도 시트 (A3, 모형공간 1:S) — 국내 상세도 스타일 ---------- */
