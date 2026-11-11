@@ -172,7 +172,7 @@ function renderWallTabs(){
   $("ttabs").innerHTML=types.map(t=>`<button type="button" class="ttab" role="tab" data-t="${t}" aria-selected="${t===cur}">${TNAME[t]}<span class="cnt">${PROJ.walls.filter((w,i)=>wType(i)===t).length}</span></button>`).join("");
   $("wtabs").innerHTML=PROJ.walls.map((w,i)=>wType(i)!==cur?"":`<button type="button" class="wtab" role="tab" draggable="true" data-i="${i}" aria-selected="${i===PROJ.active}" title="${esc(w.name)}"><span class="dot ${w.ok===undefined?"":w.ok?"ok":"bad"}"></span><span class="nm">${esc(w.name)}</span></button>`).join("");
   if(document.activeElement!==$("wName")) $("wName").value=PROJ.walls[PROJ.active].name;
-  $("wDel").disabled=PROJ.walls.length<2;
+  $("wDel").disabled=PROJ.walls.length<2; if(typeof svCntUpdate==="function") svCntUpdate();
   { const idx=PROJ.walls.map((w,i)=>i).filter(i=>wType(i)===cur), k=idx.indexOf(PROJ.active); $("wLeft").disabled=k<=0; $("wRight").disabled=k<0||k>=idx.length-1; }
 }
 function switchWall(i){ if(i===PROJ.active||!PROJ.walls[i])return; syncActive(); PROJ.active=i;

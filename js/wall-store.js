@@ -29,8 +29,8 @@ function svDate(t){try{return new Date(t).toLocaleString("ko-KR",{year:"2-digit"
 function svSummary(d){ if(d.walls&&d.walls.length){const hs=d.walls.map(w=>+w.values.H);return `옹벽 ${d.walls.length}개 · H ${Math.min(...hs)}${hs.length>1&&Math.max(...hs)!==Math.min(...hs)?"~"+Math.max(...hs):""}`;}
   const v=d.values||{}; return `H ${v.H} · B ${(+v.B1)+(+v.t2)+(+v.B3)} · 성토 1:${v.xr}/${v.Hs}`;}
 function renderSaved(){
-  const box=$("svList"); if($("svCnt")) $("svCnt").textContent=SV.list.length?`(${SV.list.length}개)`:"";
-  if(!SV.col){box.innerHTML=`<p class="note">이 화면에서는 계정 저장소를 쓸 수 없습니다. 아래 파일 내보내기·가져오기를 쓰세요.</p>`;return;}
+  const box=$("svList");
+  if(!SV.col){box.innerHTML=`<p class="note">이 화면에서는 claude 계정 저장소를 쓸 수 없습니다. 구글 드라이브나 이 PC 파일 저장을 쓰세요.</p>`;return;}
   if(!SV.list.length){box.innerHTML=`<p class="note">저장한 설계가 없습니다. 이름을 넣고 저장하면 여기에 쌓입니다.</p>`;return;}
   box.innerHTML=SV.list.map(d=>`<div class="sv-row" data-id="${esc(d.id)}">
     <div class="sv-meta"><b>${esc(d.name||"이름 없음")}</b><small>${esc(svDate(d.savedAt))} · ${esc(svSummary(d))}</small></div>
@@ -49,12 +49,12 @@ async function svInit(){
 }
 $("svBtn").addEventListener("click",async()=>{
   if(!SV.col)return;
-  const name=$("svName").value.trim()||`옹벽 H${num("H")} (${svDate(Date.now())})`;
+  const name=svDefName();
   const same=SV.list.find(d=>d.name===name);
   $("svBtn").disabled=true;
   try{ const ref=same?SV.col.doc(same.id):SV.col.doc();
     await ref.set({name,savedAt:Date.now(),...projectData()});
-    $("svName").value=""; toast(same?`"${name}"을(를) 새 값으로 덮어썼습니다.`:`"${name}"으로 저장했습니다.`);
+    $("svName").value=""; toast((same?`"${name}"을(를) 새 값으로 덮어썼습니다`:`"${name}"으로 저장했습니다`)+` (옹벽 ${PROJ.walls.length}개).`);
   }catch(e){toast(e&&e.code==="quota_exceeded"?"저장 공간이 가득 찼습니다. 안 쓰는 설계를 지우세요.":"저장하지 못했습니다. 잠시 후 다시 시도하세요.");}
   finally{$("svBtn").disabled=false;}
 });
@@ -63,7 +63,7 @@ $("svList").addEventListener("click",async ev=>{
   const b=ev.target.closest("[data-act]");if(!b)return;
   const row=b.closest(".sv-row"), id=row.dataset.id, d=SV.list.find(x=>x.id===id); if(!d)return;
   const act=b.dataset.act;
-  if(act==="load"){ if(d.walls) loadProject(d); else loadProject({walls:[{name:d.name,values:d.values||{}}]}); toast(`"${d.name}"을(를) 불러왔습니다.`);return;}
+  if(act==="load"){ if(d.walls) loadProject(d); else loadProject({walls:[{name:d.name,values:d.values||{}}]}); persistLocal(); svHide(); toast(`"${d.name}"(옹벽 ${PROJ.walls.length}개)을(를) 불러왔습니다.`);return;}
   if((act==="del"||act==="over")&&b.dataset.armed!=="1"){
     const lbl=b.textContent;b.dataset.armed="1";b.textContent=act==="del"?"정말 삭제":"정말 덮어쓰기";b.classList.add("danger");
     setTimeout(()=>{b.dataset.armed="";b.textContent=lbl;b.classList.remove("danger");},3000);return;}
@@ -73,7 +73,7 @@ $("svList").addEventListener("click",async ev=>{
   }catch(e){toast("처리하지 못했습니다. 잠시 후 다시 시도하세요.");}
 });
 $("svExport").addEventListener("click",()=>{
-  const name=($("svName").value.trim()||`옹벽_H${num("H")}`).replace(/[\\/:*?"<>|]/g,"_");
+  const name=svDefName().replace(/[\\/:*?"<>|]/g,"_");
   save(`${name}.json`,JSON.stringify({app:"옹벽 설계도구",version:2,savedAt:new Date().toISOString(),...projectData()},null,2));
 });
 $("svImport").addEventListener("change",ev=>{
@@ -89,7 +89,7 @@ $("svImport").addEventListener("change",ev=>{
 });
 // 가져오기: 지금 옹벽 목록에 추가할지, 목록을 통째로 바꿀지 고름 (기본 = 추가)
 function askImport(fname,ws,j){
-  const box=$("impAsk"); box.hidden=false; if($("svBox")) $("svBox").open=true;
+  const box=$("impAsk"); box.hidden=false; svShow();
   box.innerHTML=`<b>${esc(fname)}</b> · 옹벽 ${ws.length}개<br>지금 목록(${PROJ.walls.length}개)에 어떻게 넣을까요?
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px"><button type="button" class="btn small primary" data-imp="add">목록 뒤에 추가</button><button type="button" class="btn small" data-imp="rep">목록 통째로 바꾸기</button><button type="button" class="btn small" data-imp="no">취소</button></div>`;
   box.onclick=ev=>{const b=ev.target.closest("[data-imp]"); if(!b) return; box.hidden=true; box.onclick=null; const a=b.dataset.imp;
@@ -134,11 +134,11 @@ async function gdPut(name,oldId){ const folder=await gdFolder();
   if(oldId) await gdCall("trash_file",{fileId:oldId});   /* 덮어쓰기 = 새 파일 저장 후 이전 파일은 드라이브 휴지통으로 */ }
 $("gdRefresh").addEventListener("click",gdRefresh);
 $("gdSave").addEventListener("click",async()=>{ if(GD.busy)return;
-  const name=$("svName").value.trim()||`옹벽 H${num("H")} (${svDate(Date.now())})`;
+  const name=svDefName();
   GD.busy=true; $("gdSave").disabled=true; renderGD("구글 드라이브에 저장하는 중…");
   try{ if(!GD.list) { try{ await gdRefresh(); }catch(e){} }
     const same=(GD.list||[]).find(d=>d.name===name);
-    await gdPut(name,same&&same.id); $("svName").value=""; toast(same?`"${name}"을(를) 구글 드라이브에 덮어썼습니다.`:`"${name}"을(를) 구글 드라이브에 저장했습니다.`); }
+    await gdPut(name,same&&same.id); $("svName").value=""; toast((same?`"${name}"을(를) 구글 드라이브에 덮어썼습니다`:`"${name}"을(를) 구글 드라이브에 저장했습니다`)+` (옹벽 ${PROJ.walls.length}개).`); }
   catch(e){ toast("구글 드라이브에 저장하지 못했습니다: "+gdErr(e)); }
   finally{ GD.busy=false; $("gdSave").disabled=false; await gdRefresh(); } });
 $("gdList").addEventListener("click",async ev=>{ const b=ev.target.closest("[data-gact]"); if(!b||GD.busy)return;
@@ -152,10 +152,24 @@ $("gdList").addEventListener("click",async ev=>{ const b=ev.target.closest("[dat
       if(txt==null){ const blk=(result.content||[]).find(c=>c.resource&&(c.resource.blob||c.resource.text)); if(blk) txt=blk.resource.text||gdB64(blk.resource.blob); else if(typeof payload==="string") txt=payload; }
       if(txt==null) throw new Error("파일 내용을 받지 못했습니다");
       const j=JSON.parse(txt); if(!j.walls||!j.walls.length) throw new Error("이 파일에는 옹벽 입력값이 없습니다");
-      loadProject(j); toast(`"${d.name}"을(를) 구글 드라이브에서 불러왔습니다.`); }
+      loadProject(j); persistLocal(); svHide(); toast(`"${d.name}"(옹벽 ${PROJ.walls.length}개)을(를) 구글 드라이브에서 불러왔습니다.`); }
     else if(act==="over"){ await gdPut(d.name,id); toast(`"${d.name}"을(를) 지금 값으로 덮어썼습니다.`); }
     else { await gdCall("trash_file",{fileId:id}); toast(`"${d.name}"을(를) 드라이브 휴지통으로 옮겼습니다.`); }
   }catch(e){ toast("처리하지 못했습니다: "+gdErr(e)); }
   finally{ GD.busy=false; if(act!=="load") await gdRefresh(); } });
 
 svInit();
+
+/* ---------- 전체 옹벽 저장 · 불러오기 창: 형식 탭과 관계없이 옹벽 전부를 한 묶음으로 ---------- */
+function svCountText(){ syncActive(); const c={T:0,L:0,RL:0}; PROJ.walls.forEach((w,i)=>{c[wType(i)]=(c[wType(i)]||0)+1;});
+  return `옹벽 ${PROJ.walls.length}개 (`+["T","L","RL"].filter(t=>c[t]).map(t=>`${TNAME[t]} ${c[t]}`).join(" · ")+")"; }
+function svDefName(){ return $("svName").value.trim()||`옹벽 전체 ${PROJ.walls.length}개 ${svDate(Date.now())}`; }
+function svShow(){ const m=$("svModal"); const first=m.hidden; m.hidden=false;
+  $("svAll").textContent=`지금 열려 있는 ${svCountText()}를 한 번에 저장합니다. 불러오면 지금 목록 전체가 저장본으로 바뀝니다.`;
+  if(first&&!GD.list&&!GD.busy) gdRefresh(); }
+function svHide(){ $("svModal").hidden=true; }
+$("svOpen").addEventListener("click",svShow);
+$("svClose").addEventListener("click",svHide);
+$("svModal").addEventListener("click",ev=>{ if(ev.target===$("svModal")) svHide(); });
+document.addEventListener("keydown",ev=>{ if(ev.key==="Escape"&&!$("svModal").hidden) svHide(); });
+function svCntUpdate(){ const e=$("svCnt"); if(e) e.textContent=`(옹벽 ${PROJ.walls.length}개)`; }

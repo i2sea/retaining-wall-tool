@@ -235,3 +235,16 @@ header.top .impwrap{margin-left:auto;padding-left:16px;border-left:1px solid var
 
 #commonGroundTab{margin:0 0 0 auto;align-self:center;white-space:nowrap;flex:0 0 auto}
 #commonGroundPanel:not([hidden]){padding:10px;margin:8px 0;border:1px solid var(--line);border-radius:4px;background:var(--sunk)}
+
+/* 전체 옹벽 저장 · 불러오기 창 */
+.svopen{margin-left:auto}
+.svmodal{position:fixed;inset:0;background:rgba(20,20,18,.38);display:flex;align-items:flex-start;justify-content:center;z-index:60;padding:6vh 16px;overflow:auto}
+.svmodal[hidden]{display:none}
+.svbox{background:var(--panel);color:var(--ink);border-radius:8px;padding:14px 16px;width:min(900px,100%);display:flex;flex-direction:column;gap:10px;box-shadow:0 10px 40px rgba(0,0,0,.22)}
+.svtop{display:flex;align-items:center;justify-content:space-between;gap:8px}.svtop h3{margin:0;font-size:15px}
+.sv-acts{display:flex;gap:6px;flex-wrap:wrap}.sv-acts .btn{margin:0}
+.sv-cols{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:700px){.sv-cols{grid-template-columns:1fr}}
+.sv-cols>div{display:flex;flex-direction:column;gap:6px;min-width:0}
+.sv-colh{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}.sv-colh .btn{margin:0 0 0 auto;padding:2px 8px}
+#svList,#gdList{display:flex;flex-direction:column;gap:6px;max-height:46vh;overflow:auto}
+.svmodal .sv-gd{border-top:0;padding-top:0;margin-top:0}

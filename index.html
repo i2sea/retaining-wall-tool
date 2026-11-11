@@ -28,7 +28,7 @@
       <button type="button" class="wt" data-wt="T" aria-pressed="true"><svg viewBox="0 0 40 30"><path d="M16 2h5v20h15v6H4v-6h12z"/></svg>역T형</button>
       <button type="button" class="wt" data-wt="L" aria-pressed="false"><svg viewBox="0 0 40 30"><path d="M6 2h5v20h25v6H6z"/></svg>L형</button>
       <button type="button" class="wt" data-wt="RL" aria-pressed="false"><svg viewBox="0 0 40 30"><path d="M29 2h5v26H4v-6h25z"/></svg>역L형</button>
-    </div><button type="button" class="btn primary small" id="commonGroundTab" aria-expanded="false" aria-controls="commonGroundPanel" title="모든 옹벽에 동일 적용되는 공통 지반조건">지반조건</button></div>
+    </div><button type="button" class="btn primary small" id="commonGroundTab" aria-expanded="false" aria-controls="commonGroundPanel" title="모든 옹벽에 동일 적용되는 공통 지반조건">지반조건</button><button type="button" class="btn small svopen" id="svOpen" title="모든 형식(역T형·L형·역L형)의 옹벽 전부를 한 번에 저장·불러오기">전체 옹벽 저장 · 불러오기 <span id="svCnt"></span></button></div>
   <div id="commonGroundPanel" hidden><p class="note">여기서 변경한 지반·배수·지진계수는 모든 옹벽에 동일 적용됩니다.</p><div class="common-ground-grid"></div></div>
   <div class="wtabs" id="wtabs" role="tablist" aria-label="옹벽 목록"></div>
   <div class="wctl"><input id="wName" type="text" aria-label="현재 옹벽 이름" placeholder="옹벽 이름"><button class="btn small" id="wLeft" type="button" title="현재 옹벽 탭을 앞으로" aria-label="앞으로 이동">◀</button><button class="btn small" id="wRight" type="button" title="현재 옹벽 탭을 뒤로" aria-label="뒤로 이동">▶</button><button class="btn small" id="wDup" type="button">복제해서 추가</button><button class="btn small" id="wNew" type="button">새 옹벽</button><button class="btn small" id="wDel" type="button">삭제</button><select id="wConv" class="btn small" aria-label="현재 옹벽 형식 바꾸기" title="지금 옹벽의 형식을 바꿉니다"><option value="">형식 바꾸기…</option><option value="T">역T형으로</option><option value="L">L형으로</option><option value="RL">역L형으로</option></select><span class="note" style="margin-left:auto" title="입력칸에 글자를 넣는 중에는 Alt를 함께 누르세요">단축키 · 옹벽 탭 <kbd>,</kbd> <kbd>.</kbd> · 출력 탭 <kbd>[</kbd> <kbd>]</kbd> · 형식 <kbd>Shift</kbd>+<kbd>,</kbd> <kbd>.</kbd></span></div>
@@ -42,16 +42,6 @@
 </div>
 <div class="layout">
 <aside class="inputs">
-  <details class="saved" id="svBox" aria-label="설계 저장">
-    <summary class="sv-head">작업 묶음 저장 · 불러오기 <span id="svCnt"></span><small style="display:block;font-weight:400;letter-spacing:0;margin-top:2px">지금 탭의 옹벽 전부를 이름 붙여 보관 · 눌러서 펼치기</small></summary>
-    <div class="sv-new"><input id="svName" type="text" placeholder="설계 이름 (예: A구간 H4.0)" aria-label="설계 이름"><button class="btn primary small" id="svBtn" type="button" disabled>저장</button></div>
-    <div id="svList"><p class="note">저장소에 연결하는 중…</p></div>
-    <div class="sv-file"><button class="btn small" id="svExport" type="button">파일로 내보내기 (.json)</button><label class="btn small" for="svImport">파일 가져오기</label><input id="svImport" type="file" accept=".json,application/json" hidden></div>
-    <div id="impAsk" class="optres" hidden></div>
-    <div class="sv-gd"><div><b>구글 드라이브</b> <small id="gdWhere">내 드라이브 › - GitHub 작업 - › 옹벽 설계도구</small></div>
-      <div class="sv-new"><button class="btn small primary" id="gdSave" type="button">드라이브에 저장</button><button class="btn small" id="gdRefresh" type="button">드라이브 목록</button></div>
-      <div id="gdList"><p class="note">위 이름칸의 이름으로 .wall.json 파일을 저장합니다. 사무실·집 어디서나 같은 목록이 보입니다. 처음 쓸 때 구글 드라이브 사용 허용 창이 뜨면 "허용"을 눌러 주세요.</p></div></div>
-  </details>
   <form id="frm" autocomplete="off">
   <p class="fsnote" id="fsNote"></p>
   <fieldset data-fs="shape">
@@ -199,6 +189,19 @@
 </main>
 </div>
 </div>
+<div class="svmodal" id="svModal" hidden><div class="svbox" role="dialog" aria-modal="true" aria-labelledby="svTitle">
+  <div class="svtop"><h3 id="svTitle">전체 옹벽 저장 · 불러오기</h3><button type="button" class="btn small" id="svClose">닫기</button></div>
+  <p class="note" id="svAll"></p>
+  <div class="sv-new"><input id="svName" type="text" placeholder="저장 이름 (예: A구간 옹벽 전체)" aria-label="저장 이름"></div>
+  <div class="sv-acts"><button class="btn small primary" id="gdSave" type="button">구글 드라이브에 저장</button><button class="btn small" id="svExport" type="button">이 PC(하드디스크)에 파일로 저장</button><label class="btn small" for="svImport">이 PC에서 파일 열기</label><input id="svImport" type="file" accept=".json,application/json" hidden><button class="btn small" id="svBtn" type="button" disabled>claude 계정에 저장</button></div>
+  <div id="impAsk" class="optres" hidden></div>
+  <div class="sv-cols">
+    <div class="sv-gd"><div class="sv-colh"><b>구글 드라이브</b> <small id="gdWhere">내 드라이브 › - GitHub 작업 - › 옹벽 설계도구</small> <button class="btn small" id="gdRefresh" type="button">목록 새로고침</button></div>
+      <div id="gdList"><p class="note">.wall.json 파일로 저장합니다. 사무실·집 어디서나 같은 목록이 보입니다. 처음 쓸 때 구글 드라이브 사용 허용 창이 뜨면 "허용"을 눌러 주세요.</p></div></div>
+    <div class="sv-acc"><div class="sv-colh"><b>claude 계정</b> <small>본인 전용 저장소</small></div><div id="svList"><p class="note">저장소에 연결하는 중…</p></div></div>
+  </div>
+  <p class="note">저장·불러오기는 언제나 위쪽 형식 탭(역T형·L형·역L형)의 옹벽 전부가 한 묶음입니다. 파일 저장은 다운로드 확인 창에서 저장 위치를 고르면 하드디스크에 .json 파일로 남습니다.</p>
+</div></div>
 <div class="toast" id="toast" hidden></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
